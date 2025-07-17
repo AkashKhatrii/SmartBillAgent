@@ -1,0 +1,75 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      @page { size: A5; margin: 12mm 8mm 14mm 8mm; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f9f9f9; color: #333; margin: 0; }
+      .receipt-container { width: 100%; background: #fff; padding: 0; border-radius: 0; box-shadow: none; margin: 0; }
+      .header { text-align: center; margin-bottom: 16px; }
+      .header img { width: 160px; height: auto; }
+      .shop-info { text-align: center; font-size: 15px; color: #222; font-weight:bold; margin-bottom: 6px; }
+      .address { text-align: center; font-size: 13px; color: #333; margin-bottom: 10px; }
+      .fssai-row { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 6px; }
+      .fssai-logo { height: 22px; vertical-align: middle; }
+      .fssai-num { font-size: 1rem; font-weight: 400; letter-spacing: 1px; }
+      .custcare { text-align: center; font-size: 16px; font-weight: 400; letter-spacing: 1px; margin-bottom: 10px; }
+      .date-row { text-align: right; font-size: 12px; color: #555; margin-bottom: 10px; }
+      .page-number { text-align:right; font-size:11px; color:#888; margin-bottom:5px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+      tr    { page-break-inside: avoid; page-break-after: auto; }
+      thead { display: table-header-group; }
+      tfoot { display: table-footer-group; }
+      th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+      th { background-color: #f0f0f0; }
+      .footer { text-align: center; font-size: 12px; color: #999; margin-top: 20px; }
+      .devanagari { font-family: 'Noto Sans Devanagari', sans-serif; font-size: 95%; }
+    </style>
+  </head>
+  <body>
+    <div class="receipt-container">
+      <div class="header">
+        <img src="https://i.ibb.co/j96QPDhz/Screenshot-2025-07-15-221240.png" alt="Shop Logo">
+      </div>
+      <div class="shop-info">
+        SHOP ADD : SHOP NO 3 SATYAM APARTMENT<br>
+        NEAR HIRA MARRIAGE HALL<br>
+        BANK OF BARODA ROAD ULHASNAGAR 421002
+      </div>
+      <div class="address">
+        <div class="fssai-row">
+          <img src="https://upload.wikimedia.org/wikipedia/en/e/e2/FSSAI_logo.png" alt="FSSAI" class="fssai-logo">
+          <span class="fssai-num">11515022000502</span>
+        </div>
+        <div class="custcare">
+          Customer Care: 9892707772 / 02512707772
+        </div>
+      </div>
+      <div class="date-row">{{ date }}</div>
+      <div class="page-number">Page {{ page }} of {{ total_pages }}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Item Name</th>
+            <th>Quantity</th>
+            <th>Price (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.no }}</td>
+              <td>{{ row.item_name | safe }}</td>
+              <td>{{ row.quantity }}</td>
+              <td></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="footer">
+        Thank you for shopping with RS Vegetables!
+      </div>
+    </div>
+  </body>
+</html>

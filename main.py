@@ -213,4 +213,4 @@ def rs_vegetables_telegram_webhook():
     return jsonify({'ok': True})
 
 if __name__ == '__main__':
-    app.run(port=os.environ.get("PORT"), debug=True)
+    app.run(host="0.0.0.0", port=os.environ.get("PORT"), debug=True)

@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+import anthropic
+
 
 load_dotenv()
 
@@ -14,6 +16,11 @@ ANIL_KIRYANA_BOT_TOKEN = os.environ.get("ANIL_KIRYANA_BOT_TOKEN")
 RS_VEGETABLES_BOT_TOKEN = os.environ.get("RS_VEGETABLES_BOT_TOKEN")
 PDF_API = os.environ.get("PDF_API")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
+
+anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
+
+
 ROWS_PER_PAGE = 18
 
 # Setup Jinja2
@@ -29,6 +36,26 @@ def load_system_prompt(path="prompts/system_prompt.txt"):
         return f.read()
     
 SYSTEM_PROMPT = load_system_prompt()
+
+def call_claude(user_message):
+    try:
+        message = anthropic_client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,  # Or "claude-3-sonnet-20240229"
+            temperature=0,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": user_message}]
+                }
+            ]
+        )
+        content = message.content[0].text
+        return json.loads(content)
+    except Exception as e:
+        print("Claude error:", e)
+        return []
 
 
 def highlight_devanagari(name):
@@ -61,26 +88,7 @@ def render_receipt_html(items, receipt):
 
 def process_order_and_generate_pdf_for_anil_kiryana(user_message):
     # 1. Send to OpenAI and parse
-    res = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "model": "gpt-4",
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message}
-            ]
-        }
-    )
-    items = res.json()["choices"][0]["message"]["content"]
-    try:
-        items_list = json.loads(items)
-    except Exception:
-        items_list = []
-
+    items_list = call_claude(user_message)
     # 2. Chunk items and render per page
     chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
     total_pages = len(chunks)
@@ -117,25 +125,7 @@ def process_order_and_generate_pdf_for_anil_kiryana(user_message):
 
 def process_order_and_generate_pdf_for_rs_vegetables(user_message):
     # 1. Send to OpenAI and parse
-    res = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "model": "gpt-4",
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message}
-            ]
-        }
-    )
-    items = res.json()["choices"][0]["message"]["content"]
-    try:
-        items_list = json.loads(items)
-    except Exception:
-        items_list = []
+    items_list = call_claude(user_message)
 
     # 2. Chunk items and render per page
     chunks = list(chunk_items(items_list, ROWS_PER_PAGE))

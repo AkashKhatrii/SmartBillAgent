@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template_string
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from threading import Thread
 import requests
 import json
 from datetime import datetime
@@ -67,7 +68,7 @@ def process_order_and_generate_pdf_for_anil_kiryana(user_message):
             "Content-Type": "application/json"
         },
         json={
-            "model": "gpt-4",
+            "model": "gpt-3.5-turbo",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
@@ -123,7 +124,7 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
             "Content-Type": "application/json"
         },
         json={
-            "model": "gpt-4",
+            "model": "gpt-3.5-turbo",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
@@ -175,13 +176,17 @@ def telegram_webhook():
     update = request.json
     chat_id = update['message']['chat']['id']
     user_message = update['message'].get('text', '')
-    pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
-    files = {'document': ('receipt.pdf', pdf_bytes)}
-    requests.post(
-        f'https://api.telegram.org/bot{BOT_TOKEN}/sendDocument',
-        data={'chat_id': chat_id},
-        files=files
-    )
+
+    def process_and_send():
+        pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
+        files = {'document': ('receipt.pdf', pdf_bytes)}
+        requests.post(
+            f'https://api.telegram.org/bot{BOT_TOKEN}/sendDocument',
+            data={'chat_id': chat_id},
+            files=files
+        )
+
+    Thread(target=process_and_send).send()
     return jsonify({'ok': True})
 
 @app.route('/anilkiryanawebhook', methods=['POST'])
@@ -189,13 +194,17 @@ def anil_kiryana_telegram_webhook():
     update = request.json
     chat_id = update['message']['chat']['id']
     user_message = update['message'].get('text', '')
-    pdf_bytes = process_order_and_generate_pdf_for_anil_kiryana(user_message)
-    files = {'document': ('receipt.pdf', pdf_bytes)}
-    requests.post(
-        f'https://api.telegram.org/bot{ANIL_KIRYANA_BOT_TOKEN}/sendDocument',
-        data={'chat_id': chat_id},
-        files=files
-    )
+
+    def process_and_send():
+        pdf_bytes = process_order_and_generate_pdf_for_anil_kiryana(user_message)
+        files = {'document': ('receipt.pdf', pdf_bytes)}
+        requests.post(
+            f'https://api.telegram.org/bot{ANIL_KIRYANA_BOT_TOKEN}/sendDocument',
+            data={'chat_id': chat_id},
+            files=files
+        )
+
+    Thread(target=process_and_send).send()
     return jsonify({'ok': True})
 
 @app.route('/rsvegetableswebhook', methods=['POST'])
@@ -203,13 +212,17 @@ def rs_vegetables_telegram_webhook():
     update = request.json
     chat_id = update['message']['chat']['id']
     user_message = update['message'].get('text', '')
-    pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
-    files = {'document': ('receipt.pdf', pdf_bytes)}
-    requests.post(
-        f'https://api.telegram.org/bot{RS_VEGETABLES_BOT_TOKEN}/sendDocument',
-        data={'chat_id': chat_id},
-        files=files
-    )
+
+    def process_and_send():
+        pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
+        files = {'document': ('receipt.pdf', pdf_bytes)}
+        requests.post(
+            f'https://api.telegram.org/bot{RS_VEGETABLES_BOT_TOKEN}/sendDocument',
+            data={'chat_id': chat_id},
+            files=files
+        )
+
+    Thread(target=process_and_send).send()
     return jsonify({'ok': True})
 
 if __name__ == '__main__':

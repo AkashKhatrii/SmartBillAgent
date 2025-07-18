@@ -68,7 +68,7 @@ def process_order_and_generate_pdf_for_anil_kiryana(user_message):
             "Content-Type": "application/json"
         },
         json={
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-4",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
@@ -124,7 +124,7 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
             "Content-Type": "application/json"
         },
         json={
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-4",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}

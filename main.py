@@ -186,7 +186,7 @@ def telegram_webhook():
             files=files
         )
 
-    Thread(target=process_and_send).send()
+    Thread(target=process_and_send).start()
     return jsonify({'ok': True})
 
 @app.route('/anilkiryanawebhook', methods=['POST'])
@@ -204,7 +204,7 @@ def anil_kiryana_telegram_webhook():
             files=files
         )
 
-    Thread(target=process_and_send).send()
+    Thread(target=process_and_send).start()
     return jsonify({'ok': True})
 
 @app.route('/rsvegetableswebhook', methods=['POST'])
@@ -222,7 +222,7 @@ def rs_vegetables_telegram_webhook():
             files=files
         )
 
-    Thread(target=process_and_send).send()
+    Thread(target=process_and_send).start()
     return jsonify({'ok': True})
 
 if __name__ == '__main__':

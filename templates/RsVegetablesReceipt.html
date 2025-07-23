@@ -33,17 +33,32 @@
         <img src="https://i.ibb.co/TDMGh0XM/Screenshot-2025-07-16-234958.png" alt="Shop Logo">
       </div>
       <div class="shop-info">
-        SHOP ADD : SHOP NO 577, MAIN BAZAR<br>
-        BHARAT CHOWK<br>
-        ULHASNAGAR 421001
+        SHOP NUMBER 577, MAIN BAZAR, BHARAT CHOWK, ULHASNAGAR 421001<br>
       </div>
       <div class="address">
         <div class="custcare">
-          Contact: 6262620624 / 9112222000
+          Contact: 6262620624 / 0251-2709656 / 9422709656 
         </div>
       </div>
       <div class="date-row">{{ date }}</div>
       <div class="page-number">Page {{ page }} of {{ total_pages }}</div>
+      <div style="margin-bottom: 16px; font-size: 15px; font-weight: 500; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 1rem 0;">
+    <div style="flex: 0 0 48%;">
+      <label><strong>NAME:</strong></label>
+      <span style="display: inline-block; border-bottom: 1px solid #888; width: 60%; margin-left: 6px;">&nbsp;</span>
+    </div>
+    <div style="flex: 0 0 48%; text-align: right;">
+      <label><strong>CONTACT:</strong></label>
+      <span style="display: inline-block; border-bottom: 1px solid #888; width: 60%; margin-left: 6px;">&nbsp;</span>
+    </div>
+  </div>
+  <div style="margin-bottom: 1rem;">
+    <label><strong>ADDRESS:</strong></label>
+    <span style="display: inline-block; border-bottom: 1px solid #888; width: 80%; margin-left: 6px;">&nbsp;</span>
+  </div>
+</div>
+
       <table>
         <thead>
           <tr>
@@ -63,9 +78,15 @@
             </tr>
           {% endfor %}
         </tbody>
+        <tfoot>
+    <tr>
+      <td colspan="3" style="text-align: right; font-weight: bold;">Total</td>
+      <td style="font-weight: bold;">₹{{ total }}</td>
+    </tr>
+  </tfoot>
       </table>
       <div class="footer">
-        Thank you for shopping with RS Vegetables!
+        Thank you for shopping with RS Vegetables and Fruits!
       </div>
     </div>
   </body>

@@ -42,7 +42,7 @@ def call_claude(user_message):
     try:
         message = anthropic_client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=1024,  # Or "claude-3-sonnet-20240229"
+            max_tokens=2000,
             temperature=0,
             system=SYSTEM_PROMPT,
             messages=[

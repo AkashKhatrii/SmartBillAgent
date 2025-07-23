@@ -28,6 +28,7 @@ Your job: Convert the order to a minified JSON array for receipt making.
 - Sometimes the quantity/unit will be unclear as mentioned above. In those times, make a judgement call about what it hsoud be. E.g., 2 lemon does not mean 2kg lemons, because people don't usually buy 2kg lemons, its rare, so we should consider as 2 pcs lemon. Another example: 1 aloo -> we should infer it as 1kg potatoes and not only 1pc potato. SO, it totally depends on everyday usage and what the usual consumer behavior is.
 - Second thing, If you are NOT at least 90% sure of an item's English/Hindi name, keep the original from the user's message but still infer and include the right quantity and unit.
 - Also, sometimes people write in Hindi units, e.g., 1 pav beans or 1 pv beans -> here pav/pv means 250g or 250l depending upon the item, so, it's nice to keep in mind.
+- When no quantity id mentioned and only item name is present, try not to include/make up quantity by your own. You should only write the item name.
 ---
 
 
@@ -71,6 +72,22 @@ Use this table to identify and translate Sindhi vegetable names:
 | Pannaaro Bassar       | Spring onions       | हरा प्याज़           |
 | Tamaata               | Tomatoes            | टमाटर               |
 | Sooran                | Yam                 | सुरन                |
+
+
+### 🧠 EXTRA ITEMS REFERENCE TABLE (for better parsing of tricky/local items)
+
+| English Name                | Hindi (Devanagari)         | Notes                                  |
+|----------------------------|----------------------------|----------------------------------------|
+| Green chilly pakora        | हरी मिर्ची पकोड़ा           | Uncommon phrasing                      |
+| Kakra chilly               | काकड़ा मिर्ची               | Rare chili type                        |
+| Peeled garlic              | छिला हुआ लहसुन             | Specific preparation                   |
+| Lotus stem                 | कमल ककड़ी                   | Common in Indian households            |
+| Raw mango                  | कैरी                         | Regional name, context matters         |
+| Totapuri raw mango         | तोतापुरी कैरी               | Specific mango variety                 |
+| Red pumpkin                | लाल पेठा                    | Often confused with generic pumpkin    |
+| White pumpkin              | सफेद पेठा                   | Distinct from red pumpkin              |
+| Apple gourd/Meha/Meya                | टिंडा                        | May be confused with bottle gourd      |
+| **Ivy gourd (Karveli)**    | करवेली / टेंडली / कुंदरू     | ❗️Do NOT confuse with Karela (करेला)   |
 
 Output format:
 Return only a minified JSON array (no extra text), each item as:

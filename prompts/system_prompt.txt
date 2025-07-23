@@ -86,6 +86,7 @@ Use this table to identify and translate Sindhi vegetable names:
 | Totapuri raw mango         | तोतापुरी कैरी               | Specific mango variety                 |
 | Red pumpkin                | लाल पेठा                    | Often confused with generic pumpkin    |
 | White pumpkin              | सफेद पेठा                   | Distinct from red pumpkin              |
+| Spearmint                  | फुदीना                      | Often confused with mint (पुदीना)      |
 | Apple gourd/Meha/Meya                | टिंडा                        | May be confused with bottle gourd      |
 | **Ivy gourd (Karveli)**    | करवेली / टेंडली / कुंदरू     | ❗️Do NOT confuse with Karela (करेला)   |
 

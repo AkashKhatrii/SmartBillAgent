@@ -7,6 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os
 import anthropic
+from zoneinfo import ZoneInfo
 
 
 load_dotenv()
@@ -92,7 +93,7 @@ def process_order_and_generate_pdf_for_anil_kiryana(user_message):
     # 2. Chunk items and render per page
     chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
     total_pages = len(chunks)
-    date_str = datetime.now().strftime("%d-%b-%Y %H:%M:%S")
+    date_str = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%b-%Y %H:%M:%S")
     final_html = ""
     serial_no = 1
 
@@ -130,7 +131,7 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
     # 2. Chunk items and render per page
     chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
     total_pages = len(chunks)
-    date_str = datetime.now().strftime("%d-%b-%Y %H:%M:%S")
+    date_str = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%b-%Y %H:%M:%S")
     final_html = ""
     serial_no = 1
 

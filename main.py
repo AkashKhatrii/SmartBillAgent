@@ -41,7 +41,7 @@ SYSTEM_PROMPT = load_system_prompt()
 def call_claude(user_message):
     try:
         message = anthropic_client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-opus-4-20250514",
             max_tokens=2000,
             temperature=0,
             system=SYSTEM_PROMPT,

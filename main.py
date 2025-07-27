@@ -22,7 +22,7 @@ CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 
-ROWS_PER_PAGE = 18
+ROWS_PER_PAGE = 17
 
 # Setup Jinja2
 env = Environment(
@@ -130,7 +130,7 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
     items_list = call_claude(user_message)
 
     # 2. Chunk items and render per page
-    chunks = list(chunk_items(items_list, 17))
+    chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
     total_pages = len(chunks)
     ist = pytz.timezone("Asia/Kolkata")
     date_str = datetime.now(ist).strftime("%d-%b-%Y %H:%M:%S")

@@ -160,17 +160,9 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
             final_html += '<div style="page-break-after: always"></div>'
 
     # 3. Convert HTML to PDF
-    pdf_filename = "rs_vegetables_order.pdf"  # Or dynamically generate filename
-    with open(pdf_filename, "wb") as pdf_file:
-        pisa_status = pisa.CreatePDF(final_html, dest=pdf_file)
+    res_pdf = requests.post(PDF_API, json={"html": final_html})
+    return res_pdf.content
 
-    if pisa_status.err:
-        # handle errors appropriately, e.g.
-        raise Exception(f"PDF generation error: {pisa_status.err}")
-    else:
-        print(f"PDF generated successfully as {pdf_filename}")
-
-    return pdf_filename
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():

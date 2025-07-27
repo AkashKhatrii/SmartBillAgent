@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import os
 import anthropic
 import pytz
-
+from xhtml2pdf import pisa
 
 load_dotenv()
 
@@ -130,7 +130,7 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
     items_list = call_claude(user_message)
 
     # 2. Chunk items and render per page
-    chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
+    chunks = list(chunk_items(items_list, 17))
     total_pages = len(chunks)
     ist = pytz.timezone("Asia/Kolkata")
     date_str = datetime.now(ist).strftime("%d-%b-%Y %H:%M:%S")
@@ -160,9 +160,17 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
             final_html += '<div style="page-break-after: always"></div>'
 
     # 3. Convert HTML to PDF
-    res_pdf = requests.post(PDF_API, json={"html": final_html})
-    return res_pdf.content
+    pdf_filename = "rs_vegetables_order.pdf"  # Or dynamically generate filename
+    with open(pdf_filename, "wb") as pdf_file:
+        pisa_status = pisa.CreatePDF(final_html, dest=pdf_file)
 
+    if pisa_status.err:
+        # handle errors appropriately, e.g.
+        raise Exception(f"PDF generation error: {pisa_status.err}")
+    else:
+        print(f"PDF generated successfully as {pdf_filename}")
+
+    return pdf_filename
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():

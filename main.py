@@ -79,10 +79,26 @@ def call_claude(user_message):
         content = message.content[0].text
         logging.debug(f"Claude response: {content}")
 
+        # FIX: Strip markdown code blocks if present
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]  # Remove ```json
+        if content.startswith("```"):
+            content = content[3:]   # Remove ```
+        if content.endswith("```"):
+            content = content[:-3]  # Remove trailing ```
+        content = content.strip()
+
+        logging.debug(f"Cleaned content: {content[:200]}...")
+
         parsed = json.loads(content)
-        logging.debug(f"Parsed items count: {len(parsed)}")
+        logging.debug(f"✅ Parsed {len(parsed)} items")
 
         return parsed
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON parsing error: {e}")
+        logging.error(f"Content was: {content}")
+        return []
     except Exception as e:
         logging.error(f"Claude error: {e}")
         return []

@@ -1,0 +1,12 @@
+[phases.setup]
+aptPkgs = [
+    "libcairo2-dev",
+    "libpango1.0-dev",
+    "libgdk-pixbuf2.0-dev",
+    "libffi-dev",
+    "pkg-config",
+    "build-essential"
+]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]

@@ -91,13 +91,9 @@ Use this table to identify and translate Sindhi vegetable names:
 | **Ivy gourd (Karveli)**    | करवेली / टेंडली / कुंदरू     | ❗️Do NOT confuse with Karela (करेला)   |
 
 Output format:
-Return only a minified JSON array (no extra text), each item as:
-{"item_name":"...","quantity":"..."}
+Return ONLY the JSON array. Do NOT wrap it in markdown code blocks or add any explanation.
+Just the raw JSON array starting with [ and ending with ].
 
-Example Input:
-2 bread, 1/2 aloo, 1 packet maggi, 3 eggs, 1.5 milk
-
-Example Output:
-[{"item_name":"Bread (ब्रेड)","quantity":"2 packets"},{"item_name":"Potatoes (आलू)","quantity":"1/2 kg"},{"item_name":"Maggi (मैगी)","quantity":"1 packet"},{"item_name":"Eggs (अंडे)","quantity":"3 pcs"},{"item_name":"Milk (दूध)","quantity":"1.5 litre"}]
-
+Example output:
+[{"item_name":"Bread (ब्रेड)","quantity":"2 packets"}]
 If in doubt, infer the most likely quantity/unit based on common usage. Output strictly the JSON array and nothing else.

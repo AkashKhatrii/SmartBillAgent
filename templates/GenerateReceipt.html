@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate Receipt</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f8;
+      color: #1a1a1a;
+      margin: 0;
+      padding: 16px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin: 0 0 4px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+    }
+    select, textarea, input[type="password"] {
+      width: 100%;
+      font-size: 16px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 16px;
+    }
+    textarea {
+      min-height: 220px;
+      resize: vertical;
+      line-height: 1.5;
+      font-family: inherit;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: #2e7d32;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #9e9e9e;
+      cursor: not-allowed;
+    }
+    .example {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: -12px;
+      margin-bottom: 16px;
+    }
+    .error {
+      display: none;
+      background: #fdecea;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+    .error.visible { display: block; }
+    .status {
+      text-align: center;
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 12px;
+      min-height: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Generate Receipt</h1>
+    <p class="subtitle">Paste the order below and download the PDF.</p>
+
+    <div id="error" class="error"></div>
+
+    <form id="generate-form">
+      <label for="shop">Shop</label>
+      <select id="shop" name="shop">
+        <option value="rs_vegetables">RS Vegetables</option>
+        <option value="anil_kiryana">Anil Kiryana</option>
+      </select>
+
+      <label for="text">Order</label>
+      <textarea id="text" name="text" placeholder="Tomato 2kg&#10;Onion 5kg&#10;Aloo 1kg" required></textarea>
+      <p class="example">One item per line. Hindi, English, or mixed is fine.</p>
+
+      {% if auth_required %}
+      <label for="api_key">Access key</label>
+      <input type="password" id="api_key" name="api_key" autocomplete="current-password" required>
+      {% endif %}
+
+      <button type="submit" id="submit-btn">Generate PDF</button>
+    </form>
+
+    <p id="status" class="status"></p>
+  </div>
+
+  <script>
+    const form = document.getElementById('generate-form');
+    const errorEl = document.getElementById('error');
+    const statusEl = document.getElementById('status');
+    const submitBtn = document.getElementById('submit-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.remove('visible');
+      submitBtn.disabled = true;
+      statusEl.textContent = 'Processing order… this may take 10–20 seconds';
+
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST',
+          body: new FormData(form),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to generate receipt');
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'receipt.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+        statusEl.textContent = 'PDF downloaded!';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('visible');
+        statusEl.textContent = '';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

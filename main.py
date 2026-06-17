@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from threading import Thread
 import requests
@@ -20,6 +20,7 @@ RS_VEGETABLES_BOT_TOKEN = os.environ.get("RS_VEGETABLES_BOT_TOKEN")
 PDF_API = os.environ.get("PDF_API")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
+GENERATE_API_KEY = os.environ.get("GENERATE_API_KEY")
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
@@ -271,7 +272,73 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message):
     except Exception as e:
         logging.error(f"Error in process_order: {e}", exc_info=True)
         return None
-        
+
+
+def _get_order_text():
+    if request.is_json:
+        return (request.json or {}).get("text", "").strip()
+    return request.form.get("text", "").strip()
+
+
+def _get_shop():
+    shop = request.args.get("shop") or request.form.get("shop")
+    if request.is_json:
+        shop = shop or (request.json or {}).get("shop")
+    return shop or "rs_vegetables"
+
+
+def _check_generate_auth():
+    if not GENERATE_API_KEY:
+        return True
+    provided = (
+        request.headers.get("X-API-Key")
+        or request.form.get("api_key")
+        or (request.json or {}).get("api_key")
+    )
+    return provided == GENERATE_API_KEY
+
+
+def _generate_pdf_response(text, shop):
+    processors = {
+        "rs_vegetables": process_order_and_generate_pdf_for_rs_vegetables,
+        "anil_kiryana": process_order_and_generate_pdf_for_anil_kiryana,
+    }
+    processor = processors.get(shop)
+    if not processor:
+        return jsonify({"error": f"Unknown shop: {shop}"}), 400
+
+    if not text:
+        return jsonify({"error": "Order text is required"}), 400
+
+    logging.info(f"Generating PDF for shop={shop}, {len(text)} chars")
+    pdf_bytes = processor(text)
+
+    if not pdf_bytes:
+        return jsonify({
+            "error": "Failed to parse order. Check format.\n\nExample:\nTomato 2kg\nOnion 5kg"
+        }), 400
+
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=receipt.pdf"},
+    )
+
+
+@app.route("/", methods=["GET"])
+def generate_form():
+    return env.get_template("GenerateReceipt.html").render(
+        auth_required=bool(GENERATE_API_KEY)
+    )
+
+
+@app.route("/generate", methods=["POST"])
+def generate_receipt():
+    if not _check_generate_auth():
+        return jsonify({"error": "Invalid or missing access key"}), 401
+
+    return _generate_pdf_response(_get_order_text(), _get_shop())
+
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():

@@ -298,20 +298,29 @@ def _check_generate_auth():
     return provided == GENERATE_API_KEY
 
 
+SHOP_PROCESSORS = {
+    "rs_vegetables": process_order_and_generate_pdf_for_rs_vegetables,
+    "anil_kiryana": process_order_and_generate_pdf_for_anil_kiryana,
+}
+
+
+def _generate_pdf_bytes(text, shop):
+    """Shared pipeline: order text -> PDF bytes (None on failure)."""
+    processor = SHOP_PROCESSORS.get(shop)
+    if not processor or not text:
+        return None
+    logging.info(f"Generating PDF for shop={shop}, {len(text)} chars")
+    return processor(text)
+
+
 def _generate_pdf_response(text, shop):
-    processors = {
-        "rs_vegetables": process_order_and_generate_pdf_for_rs_vegetables,
-        "anil_kiryana": process_order_and_generate_pdf_for_anil_kiryana,
-    }
-    processor = processors.get(shop)
-    if not processor:
+    if shop not in SHOP_PROCESSORS:
         return jsonify({"error": f"Unknown shop: {shop}"}), 400
 
     if not text:
         return jsonify({"error": "Order text is required"}), 400
 
-    logging.info(f"Generating PDF for shop={shop}, {len(text)} chars")
-    pdf_bytes = processor(text)
+    pdf_bytes = _generate_pdf_bytes(text, shop)
 
     if not pdf_bytes:
         return jsonify({
@@ -448,6 +457,156 @@ def rs_vegetables_telegram_webhook():
 
     Thread(target=process_and_send).start()
     return jsonify({'ok': True})
+
+# ---------------------------------------------------------------------------
+# WhatsApp Cloud API
+#
+# Forward a customer order to the WhatsApp Business number and the bill PDF
+# comes back in the same chat — the Telegram copy-paste step goes away.
+#
+# Setup (one time, in Meta's developer dashboard):
+#   1. Create a Meta app, add the WhatsApp product, add/verify a phone number
+#      (this is the "bot" number — it can't be the number on your personal
+#      WhatsApp; use a second SIM / virtual number).
+#   2. Create a permanent System User access token with
+#      whatsapp_business_messaging permission -> WHATSAPP_TOKEN.
+#   3. Note the phone number ID shown for that number -> WHATSAPP_PHONE_NUMBER_ID.
+#   4. Make up any random string -> WHATSAPP_VERIFY_TOKEN (same value in Meta's
+#      webhook config and in the env vars).
+#   5. Point Meta's webhook at https://<your-railway-url>/whatsapp and subscribe
+#      to the "messages" field.
+#
+# Env vars (Railway -> Variables):
+#   WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN,
+#   WHATSAPP_SHOP (optional: rs_vegetables | anil_kiryana, default rs_vegetables)
+# ---------------------------------------------------------------------------
+WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")  # permanent System User token
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID")
+WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN")
+WHATSAPP_SHOP = os.environ.get("WHATSAPP_SHOP", "rs_vegetables")
+WHATSAPP_GRAPH_VERSION = "v23.0"
+
+_wa_graph_base = f"https://graph.facebook.com/{WHATSAPP_GRAPH_VERSION}"
+_seen_wa_messages = set()  # dedupe Meta webhook retries
+
+
+def _wa_post(path, **kwargs):
+    url = f"{_wa_graph_base}/{WHATSAPP_PHONE_NUMBER_ID}{path}"
+    headers = kwargs.pop("headers", {})
+    headers["Authorization"] = f"Bearer {WHATSAPP_TOKEN}"
+    resp = requests.post(url, headers=headers, timeout=30, **kwargs)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def whatsapp_send_text(to, body):
+    return _wa_post("/messages", json={
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": body},
+    })
+
+
+def whatsapp_upload_pdf(pdf_bytes, filename="receipt.pdf"):
+    url = f"{_wa_graph_base}/{WHATSAPP_PHONE_NUMBER_ID}/media"
+    files = {"file": (filename, pdf_bytes, "application/pdf")}
+    data = {"messaging_product": "whatsapp"}
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
+        data=data,
+        files=files,
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["id"]
+
+
+def whatsapp_send_document(to, media_id, filename="receipt.pdf", caption="🧾 Your bill is ready"):
+    return _wa_post("/messages", json={
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "document",
+        "document": {"id": media_id, "filename": filename, "caption": caption},
+    })
+
+
+def _process_whatsapp_order(sender, order_text, msg_type):
+    if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_NUMBER_ID:
+        logging.error("WhatsApp is not configured (WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID missing)")
+        return
+    try:
+        if msg_type != "text" or not order_text:
+            whatsapp_send_text(
+                sender,
+                "Please forward the order as *text*.\n\nExample:\nTomato 2kg\nOnion 5kg\n\n(I can't read photos or voice notes yet.)",
+            )
+            return
+
+        whatsapp_send_text(sender, "⏳ Generating your bill...")
+        pdf_bytes = _generate_pdf_bytes(order_text, WHATSAPP_SHOP)
+
+        if not pdf_bytes or not pdf_bytes.startswith(b"%PDF"):
+            logging.error("WhatsApp: PDF generation failed")
+            whatsapp_send_text(
+                sender,
+                "❌ Couldn't read that order. Please check the format.\n\nExample:\nTomato 2kg\nOnion 5kg",
+            )
+            return
+
+        media_id = whatsapp_upload_pdf(pdf_bytes)
+        whatsapp_send_document(sender, media_id, caption="🧾 Your bill is ready")
+        logging.info(f"✅ WhatsApp bill sent to {sender}")
+    except Exception:
+        logging.exception("WhatsApp order processing failed")
+        try:
+            whatsapp_send_text(sender, "❌ Something went wrong while generating the bill. Please try again.")
+        except Exception:
+            pass
+
+
+@app.route("/whatsapp", methods=["GET"])
+def whatsapp_verify():
+    """Meta webhook verification handshake (called once during setup)."""
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+    if mode == "subscribe" and WHATSAPP_VERIFY_TOKEN and token == WHATSAPP_VERIFY_TOKEN:
+        return Response(challenge or "", status=200, mimetype="text/plain")
+    logging.warning("WhatsApp webhook verification failed")
+    return jsonify({"error": "verification failed"}), 403
+
+
+@app.route("/whatsapp", methods=["POST"])
+def whatsapp_webhook():
+    payload = request.get_json(silent=True) or {}
+
+    def handle():
+        try:
+            for entry in payload.get("entry", []):
+                for change in entry.get("changes", []):
+                    value = change.get("value", {})
+                    for message in value.get("messages", []):
+                        msg_id = message.get("id")
+                        if msg_id in _seen_wa_messages:
+                            continue  # Meta retried the webhook; don't bill twice
+                        _seen_wa_messages.add(msg_id)
+                        if len(_seen_wa_messages) > 2000:
+                            _seen_wa_messages.clear()
+                        sender = message.get("from")
+                        msg_type = message.get("type", "")
+                        order_text = ""
+                        if msg_type == "text":
+                            order_text = ((message.get("text") or {}).get("body") or "").strip()
+                        if sender:
+                            _process_whatsapp_order(sender, order_text, msg_type)
+        except Exception:
+            logging.exception("WhatsApp webhook handler failed")
+
+    Thread(target=handle).start()
+    return jsonify({"ok": True}), 200
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=os.environ.get("PORT"), debug=True)

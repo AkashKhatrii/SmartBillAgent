@@ -622,7 +622,7 @@ def rs_vegetables_telegram_webhook():
             # Comparison mode: one PDF per provider so quality can be judged side by side.
             _send_telegram_text(
                 RS_VEGETABLES_BOT_TOKEN, chat_id,
-                "\u23F3 Processing your order with Claude and DeepSeek...",
+                "\u23F3 Processing your order...",
             )
             results = _comparison_results(
                 user_message, process_order_and_generate_pdf_for_rs_vegetables

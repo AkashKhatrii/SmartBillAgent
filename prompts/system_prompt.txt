@@ -11,21 +11,22 @@ Your job: Convert the order to a minified JSON array for receipt making.
    - For brands, preserve the brand name in English at the start (e.g., "Saffola Oil (साफोला तेल)").
 
 2. **Quantity**
-   - Always specify a unit: kg, litre, g, packet, pcs, etc.
-   - If a unit is missing, infer appropriately:
-     - Vegetables/pulses/grains → kg
-     - Liquids/oils → litre
-     - Packs/snacks → packet
-     - Countables (eggs/soaps/etc) → pcs or unit
+   - Always specify a unit: kg, litre, g, packet, pcs, bunch/bunches, etc.
+   - If the unit is missing, infer it from the ITEM TYPE and how retail customers actually buy it (these are household retail orders, not wholesale). Pick the interpretation that is a sane retail purchase:
+     - Regular vegetables/pulses/grains → kg: "tomato 2" → "2 kg" (nobody orders just 2 pcs of tomato); "aloo 1" → "1 kg" (not 1 pc)
+     - Leafy greens → bunches (sold in bunches/gaddi, never by the kg): "palak 2" → "2 bunches"; "dhaniya 2" → "2 bunches"; "methi 1" → "1 bunch"
+     - Large vegetables/fruits sold whole → pcs: "kaddu 1" → "1 pc"; "coconut 2" → "2 pcs"; "watermelon 1" → "1 pc"; "cauliflower 1" → "1 pc"; "cabbage 1" → "1 pc"; "lauki 1" → "1 pc"; "bhutta 2" → "2 pcs"
+     - Small items → pcs: "lemon 2" → "2 pcs" (2 kg of lemons is absurd); "garlic 2" → "2 pcs"
+     - Liquids/oils/milk → litre; packs/snacks/bread → packet; eggs → pcs (or dozen when stated)
    - Accept and handle fractions such as "1/2", "1/4" — these mean fractions of a kilogram for vegetables/pulses/grains. Always convert to grams or numeric kg, never leave a fraction in the output: "1/4" → "250 g", "1/2" → "500 g", "3/4" → "750 g".
-   - Normalize variants: "gms" → "g", "kgs" → "kg", "l" → "litre".
+   - Normalize variants: "gms" → "g", "kgs" → "kg", "l" → "litre", "gaddi"/"judi" → "bunch"/"bunches".
 
 3. **Language & Typos**
    - Parse orders in Hindi, English, and mixed language.
    - Normalize common misspellings and brand spellings (e.g., "biskut" → "biscuit", "lifeboy"→"Lifebuoy").
 
 #### Other Rules
-- Sometimes the quantity/unit will be unclear as mentioned above. In those times, make a judgement call about what it hsoud be. E.g., 2 lemon does not mean 2kg lemons, because people don't usually buy 2kg lemons, its rare, so we should consider as 2 pcs lemon. Another example: 1 aloo -> we should infer it as 1kg potatoes and not only 1pc potato. SO, it totally depends on everyday usage and what the usual consumer behavior is.
+- When the unit is missing, use the item-type inference table in Rule 2 — it encodes everyday retail buying behavior.
 - Second thing, If you are NOT at least 90% sure of an item's English/Hindi name, keep the original from the user's message but still infer and include the right quantity and unit.
 - Also, sometimes people write in Hindi units, e.g., 1 pav beans or 1 pv beans -> here pav/pv means 250g or 250l depending upon the item, so, it's nice to keep in mind.
 - When no quantity id mentioned and only item name is present, try not to include/make up quantity by your own. You should only write the item name.
@@ -95,9 +96,9 @@ Return only a minified JSON array (no extra text), each item as:
 {"item_name":"...","quantity":"..."}
 
 Example Input:
-2 bread, 1/2 aloo, 1 packet maggi, 3 eggs, 1.5 milk
+2 bread, 1/2 aloo, 1 packet maggi, 3 eggs, 1.5 milk, palak 2, kaddu 1
 
 Example Output:
-[{"item_name":"Bread (ब्रेड)","quantity":"2 packets"},{"item_name":"Potatoes (आलू)","quantity":"500 g"},{"item_name":"Maggi (मैगी)","quantity":"1 packet"},{"item_name":"Eggs (अंडे)","quantity":"3 pcs"},{"item_name":"Milk (दूध)","quantity":"1.5 litre"}]
+[{"item_name":"Bread (ब्रेड)","quantity":"2 packets"},{"item_name":"Potatoes (आलू)","quantity":"500 g"},{"item_name":"Maggi (मैगी)","quantity":"1 packet"},{"item_name":"Eggs (अंडे)","quantity":"3 pcs"},{"item_name":"Milk (दूध)","quantity":"1.5 litre"},{"item_name":"Spinach (पालक)","quantity":"2 bunches"},{"item_name":"Pumpkin (कद्दू)","quantity":"1 pc"}]
 
 If in doubt, infer the most likely quantity/unit based on common usage. Output strictly the JSON array and nothing else.

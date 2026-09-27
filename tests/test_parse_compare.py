@@ -212,3 +212,14 @@ def test_compare_claude_vs_deepseek_live():
 
     assert not failures, f"Both providers failed on: {failures}"
     print("\n=== done ===")
+
+
+def test_anil_processor_empty_parse_returns_none():
+    assert main.process_order_and_generate_pdf_for_anil_kiryana(
+        "gibberish", parse_fn=lambda t: []) is None
+
+
+def test_anil_processor_default_still_uses_claude():
+    import inspect
+    sig = inspect.signature(main.process_order_and_generate_pdf_for_anil_kiryana)
+    assert sig.parameters["parse_fn"].default is main.call_claude

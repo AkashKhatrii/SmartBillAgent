@@ -183,9 +183,14 @@ def render_receipt_html(items, receipt):
     date_str = now.strftime("%d-%b-%Y %H:%M:%S")
     return render_template_string(template, date=date_str, rows=rows)
 
-def process_order_and_generate_pdf_for_anil_kiryana(user_message):
-    # 1. Send to OpenAI and parse
-    items_list = call_claude(user_message)
+def process_order_and_generate_pdf_for_anil_kiryana(user_message, parse_fn=call_claude):
+    # 1. Parse order text into items (Claude or DeepSeek)
+    items_list = parse_fn(user_message)
+
+    if not items_list:
+        logging.error("No items parsed from message!")
+        return None
+
     # 2. Chunk items and render per page
     chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
     total_pages = len(chunks)
@@ -478,13 +483,23 @@ def anil_kiryana_telegram_webhook():
     user_message = update['message'].get('text', '')
 
     def process_and_send():
-        pdf_bytes = process_order_and_generate_pdf_for_anil_kiryana(user_message)
-        files = {'document': ('receipt.pdf', pdf_bytes)}
-        requests.post(
-            f'https://api.telegram.org/bot{ANIL_KIRYANA_BOT_TOKEN}/sendDocument',
-            data={'chat_id': chat_id},
-            files=files
+        # Comparison mode: one PDF per provider so quality can be judged side by side.
+        results = _comparison_results(
+            user_message, process_order_and_generate_pdf_for_anil_kiryana
         )
+        for name in ("claude", "deepseek"):
+            pdf_bytes = results.get(name)
+            if pdf_bytes:
+                _send_telegram_document(
+                    ANIL_KIRYANA_BOT_TOKEN, chat_id,
+                    f"bill_{name}.pdf", pdf_bytes,
+                    caption=f"Bill via {name}",
+                )
+            else:
+                _send_telegram_text(
+                    ANIL_KIRYANA_BOT_TOKEN, chat_id,
+                    f"WARNING: {name} failed to generate a bill for this order.",
+                )
 
     Thread(target=process_and_send).start()
     return jsonify({'ok': True})

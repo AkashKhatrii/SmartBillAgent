@@ -10,6 +10,7 @@ import anthropic
 import pytz
 from xhtml2pdf import pisa
 import logging
+import subprocess
 logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv()
@@ -27,7 +28,10 @@ anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 # DeepSeek (OpenAI-compatible API). Best model right now: v4-pro.
 # Official endpoint is POST https://api.deepseek.com/chat/completions (no /v1).
 DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+# v4-flash is the general chat model (non-reasoning) suited to deterministic
+# JSON extraction; v4-pro is a reasoning model that thinks out loud and can
+# return empty content. Override with DEEPSEEK_MODEL to experiment.
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
 
 ROWS_PER_PAGE = 17
@@ -133,6 +137,7 @@ def call_deepseek(user_message):
                 ],
                 "temperature": 0,
                 "max_tokens": 2000,
+                "response_format": {"type": "json_object"},
             },
             timeout=60,
         )
@@ -693,6 +698,26 @@ def _process_whatsapp_order(sender, order_text, msg_type):
             whatsapp_send_text(sender, "❌ Something went wrong while generating the bill. Please try again.")
         except Exception:
             pass
+
+
+def _git_commit():
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL, timeout=5)
+        return out.decode().strip()
+    except Exception:
+        return "unknown"
+
+
+@app.route("/version", methods=["GET"])
+def version():
+    return jsonify({
+        "commit": _git_commit(),
+        "deepseek_model": DEEPSEEK_MODEL,
+        "deepseek_url": DEEPSEEK_API_URL,
+    })
 
 
 @app.route("/whatsapp", methods=["GET"])

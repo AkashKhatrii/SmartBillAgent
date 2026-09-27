@@ -69,8 +69,9 @@ def test_call_deepseek_parses_items():
     assert url == "https://api.deepseek.com/chat/completions"  # canonical: no /v1
     assert kwargs["headers"]["Authorization"] == "Bearer ds-key"
     body = kwargs["json"]
-    assert body["model"] == "deepseek-v4-pro"
+    assert body["model"] == "deepseek-v4-flash"  # non-reasoning chat model
     assert body["temperature"] == 0
+    assert body["response_format"] == {"type": "json_object"}
     assert body["messages"][0] == {"role": "system", "content": main.SYSTEM_PROMPT}
     assert body["messages"][1] == {"role": "user", "content": "Tomato 2kg"}
 
@@ -285,3 +286,12 @@ def test_deepseek_empty_content_and_reasoning_returns_empty(monkeypatch):
     monkeypatch.setattr(main.requests, "post", lambda *a, **k: _deepseek_resp_with(
         {"content": "", "reasoning_content": ""}))
     assert main.call_deepseek("x") == []
+
+
+def test_version_endpoint_reports_commit_and_deepseek_config():
+    resp = main.app.test_client().get("/version")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["deepseek_model"] == "deepseek-v4-flash"
+    assert data["deepseek_url"] == "https://api.deepseek.com/chat/completions"
+    assert "commit" in data

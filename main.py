@@ -529,50 +529,37 @@ def rs_vegetables_telegram_webhook():
     user_message = update['message'].get('text', '')
 
     # Log the incoming message
-    logging.info(f"📥 Received from chat {chat_id}")
-    logging.info(f"📝 Message: {user_message}")
+    logging.info(f"\U0001F4E5 Received from chat {chat_id}")
+    logging.info(f"\U0001F4DD Message: {user_message}")
 
     def process_and_send():
         try:
-            # Send status message
-            requests.post(
-                f'https://api.telegram.org/bot{RS_VEGETABLES_BOT_TOKEN}/sendMessage',
-                json={'chat_id': chat_id, 'text': '⏳ Processing your order...'}
+            # Comparison mode: one PDF per provider so quality can be judged side by side.
+            _send_telegram_text(
+                RS_VEGETABLES_BOT_TOKEN, chat_id,
+                "\u23F3 Processing your order with Claude and DeepSeek...",
             )
-
-            pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
-
-            if not pdf_bytes:
-                logging.error("❌ PDF generation returned None")
-                requests.post(
-                    f'https://api.telegram.org/bot{RS_VEGETABLES_BOT_TOKEN}/sendMessage',
-                    json={
-                        'chat_id': chat_id,
-                        'text': '❌ Failed to parse order. Please check format.\n\nExample:\nTomato 2kg\nOnion 5kg'
-                    }
-                )
-                return
-
-            logging.info(f"✅ PDF generated: {len(pdf_bytes)} bytes")
-
-            files = {'document': ('receipt.pdf', pdf_bytes)}
-            response = requests.post(
-                f'https://api.telegram.org/bot{RS_VEGETABLES_BOT_TOKEN}/sendDocument',
-                data={'chat_id': chat_id},
-                files=files
+            results = _comparison_results(
+                user_message, process_order_and_generate_pdf_for_rs_vegetables
             )
-
-            if response.status_code == 200:
-                logging.info("✅ PDF sent successfully")
-            else:
-                logging.error(f"❌ Telegram error: {response.text}")
-
+            for name in ("claude", "deepseek"):
+                pdf_bytes = results.get(name)
+                if pdf_bytes:
+                    logging.info(f"\u2705 {name} PDF generated: {len(pdf_bytes)} bytes")
+                    _send_telegram_document(
+                        RS_VEGETABLES_BOT_TOKEN, chat_id,
+                        f"bill_{name}.pdf", pdf_bytes,
+                        caption=f"Bill via {name}",
+                    )
+                else:
+                    logging.error(f"\u274C {name} failed to generate a bill")
+                    _send_telegram_text(
+                        RS_VEGETABLES_BOT_TOKEN, chat_id,
+                        f"WARNING: {name} failed to generate a bill for this order.",
+                    )
         except Exception as e:
-            logging.error(f"❌ Error in process_and_send: {e}", exc_info=True)
-            requests.post(
-                f'https://api.telegram.org/bot{RS_VEGETABLES_BOT_TOKEN}/sendMessage',
-                json={'chat_id': chat_id, 'text': f'❌ Error: {str(e)}'}
-            )
+            logging.error(f"\u274C Error in process_and_send: {e}", exc_info=True)
+            _send_telegram_text(RS_VEGETABLES_BOT_TOKEN, chat_id, f"\u274C Error: {str(e)}")
 
     Thread(target=process_and_send).start()
     return jsonify({'ok': True})

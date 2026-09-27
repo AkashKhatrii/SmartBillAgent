@@ -223,3 +223,25 @@ def test_anil_processor_default_still_uses_claude():
     import inspect
     sig = inspect.signature(main.process_order_and_generate_pdf_for_anil_kiryana)
     assert sig.parameters["parse_fn"].default is main.call_claude
+
+
+def test_rsvegetables_webhook_sends_two_pdfs(monkeypatch):
+    sent_docs, sent_texts = [], []
+    monkeypatch.setattr(main, "_comparison_results",
+                        lambda msg, proc: {"claude": b"C", "deepseek": b"D"})
+    monkeypatch.setattr(main, "_send_telegram_document",
+                        lambda tok, chat, fn, data, caption=None: sent_docs.append((fn, data)))
+    monkeypatch.setattr(main, "_send_telegram_text",
+                        lambda tok, chat, text: sent_texts.append(text))
+
+    class FakeThread:
+        def __init__(self, target): self._target = target
+        def start(self): self._target()
+    monkeypatch.setattr(main, "Thread", FakeThread)
+
+    resp = main.app.test_client().post(
+        "/rsvegetableswebhook",
+        json={"message": {"chat": {"id": 1}, "text": "Tomato 2kg"}})
+    assert resp.status_code == 200
+    assert [fn for fn, _ in sent_docs] == ["bill_claude.pdf", "bill_deepseek.pdf"]
+    assert sent_texts and "Processing" in sent_texts[0]

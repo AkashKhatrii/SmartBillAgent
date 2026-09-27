@@ -52,6 +52,26 @@ logging.info(
 )
 
 
+# ---------------------------------------------------------------------------
+# Feature flags. Flip via environment (e.g. Railway Variables) to re-enable
+# a surface without a code change; nothing is deleted.
+# ---------------------------------------------------------------------------
+def _env_flag(name, default=False):
+    return os.getenv(name, str(default)).strip().lower() in ("1", "true", "yes")
+
+
+ANIL_KIRYANA_ENABLED = _env_flag("ANIL_KIRYANA_ENABLED")  # when off, the bot replies "API balance low"
+WHATSAPP_ENABLED = _env_flag("WHATSAPP_ENABLED")          # /whatsapp verification + webhook
+WEB_FORM_ENABLED = _env_flag("WEB_FORM_ENABLED")          # / home route and /generate
+
+# Vague "broken service" message for disabled surfaces that still talk to
+# users. Never says the service was deliberately switched off.
+SERVICE_DOWN_MESSAGE = (
+    "\u26a0\ufe0f Service temporarily unavailable: API balance low. "
+    "Please try again later."
+)
+
+
 ROWS_PER_PAGE = 17
 
 # Setup Jinja2
@@ -478,6 +498,8 @@ def _generate_pdf_response(text, shop):
 
 @app.route("/", methods=["GET"])
 def generate_form():
+    if not WEB_FORM_ENABLED:
+        return "Not found", 404
     return env.get_template("GenerateReceipt.html").render(
         auth_required=bool(GENERATE_API_KEY)
     )
@@ -485,6 +507,8 @@ def generate_form():
 
 @app.route("/generate", methods=["POST"])
 def generate_receipt():
+    if not WEB_FORM_ENABLED:
+        return jsonify({"error": "service disabled"}), 404
     if not _check_generate_auth():
         return jsonify({"error": "Invalid or missing access key"}), 401
 
@@ -569,6 +593,10 @@ def anil_kiryana_telegram_webhook():
     user_message = update['message'].get('text', '')
 
     def process_and_send():
+        if not ANIL_KIRYANA_ENABLED:
+            # Paused: look broken ("API balance low"), not deliberately off.
+            _send_telegram_text(ANIL_KIRYANA_BOT_TOKEN, chat_id, SERVICE_DOWN_MESSAGE)
+            return
         # Comparison mode: one PDF per provider so quality can be judged side by side.
         results = _comparison_results(
             user_message, process_order_and_generate_pdf_for_anil_kiryana
@@ -780,6 +808,8 @@ def version():
 @app.route("/whatsapp", methods=["GET"])
 def whatsapp_verify():
     """Meta webhook verification handshake (called once during setup)."""
+    if not WHATSAPP_ENABLED:
+        return jsonify({"error": "service disabled"}), 404
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
@@ -791,6 +821,8 @@ def whatsapp_verify():
 
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_webhook():
+    if not WHATSAPP_ENABLED:
+        return jsonify({"ok": False, "error": "service disabled"}), 404
     payload = request.get_json(silent=True) or {}
 
     def handle():

@@ -366,3 +366,42 @@ def test_deepseek_gives_up_after_two_attempts(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
     monkeypatch.setattr(main.requests, "post", lambda *a, **k: Resp())
     assert main.call_deepseek("x") == []
+
+
+def test_anilkiryana_webhook_sends_down_message_when_disabled(monkeypatch):
+    """Paused Anil Kiryana bot looks broken (API balance low), not switched off."""
+    sent = []
+    monkeypatch.setattr(
+        main, "_send_telegram_text",
+        lambda tok, chat, text: sent.append(text),
+    )
+    monkeypatch.setattr(main, "ANIL_KIRYANA_ENABLED", False)
+
+    class FakeThread:
+        def __init__(self, target):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(main, "Thread", FakeThread)
+
+    resp = main.app.test_client().post(
+        "/anilkiryanawebhook",
+        json={"message": {"chat": {"id": 7}, "text": "Tomato 2kg"}},
+    )
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    assert "API balance low" in sent[0]
+
+
+def test_disabled_surfaces_return_404_by_default():
+    """WhatsApp routes and the web form are off unless explicitly enabled."""
+    assert main.ANIL_KIRYANA_ENABLED is False
+    assert main.WHATSAPP_ENABLED is False
+    assert main.WEB_FORM_ENABLED is False
+    client = main.app.test_client()
+    assert client.get("/").status_code == 404
+    assert client.post("/generate", json={}).status_code == 404
+    assert client.get("/whatsapp").status_code == 404
+    assert client.post("/whatsapp", json={}).status_code == 404

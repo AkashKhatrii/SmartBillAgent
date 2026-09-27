@@ -11,9 +11,17 @@ import pytz
 from xhtml2pdf import pisa
 import logging
 import subprocess
-logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv()
+
+# Deploy logs were drowning in per-request DEBUG noise (urllib3 connection
+# spam, full DeepSeek payloads, HTML previews). Default to INFO so a normal
+# order costs ~5 lines; set LOG_LEVEL=DEBUG in the environment for full
+# diagnostics. urllib3/werkzeug chatter stays quiet either way.
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN") # Replace with your token
 ANIL_KIRYANA_BOT_TOKEN = os.environ.get("ANIL_KIRYANA_BOT_TOKEN")
@@ -28,10 +36,20 @@ anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 # DeepSeek (OpenAI-compatible API). Best model right now: v4-pro.
 # Official endpoint is POST https://api.deepseek.com/chat/completions (no /v1).
 DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
-# v4-flash is the general chat model (non-reasoning) suited to deterministic
-# JSON extraction; v4-pro is a reasoning model that thinks out loud and can
-# return empty content. Override with DEEPSEEK_MODEL to experiment.
+# v4-flash suits deterministic JSON extraction, but it still thinks out loud
+# by default, so thinking is disabled per-request in _call_deepseek_once.
+# Override with DEEPSEEK_MODEL to experiment.
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+
+# Non-sensitive fingerprint of the configured key, so a wrong/rotated key is
+# visible in deploy logs without ever logging the key itself.
+_ds_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+logging.info(
+    "DeepSeek key: " + (
+        f"configured ({_ds_key[:4]}...{_ds_key[-4:]}, {len(_ds_key)} chars)"
+        if _ds_key else "NOT SET"
+    )
+)
 
 
 ROWS_PER_PAGE = 17
@@ -134,7 +152,7 @@ def call_claude(user_message):
 def _call_deepseek_once(user_message):
     """Single attempt; returns None on any failure so the caller can retry."""
     try:
-        api_key = os.getenv("DEEPSEEK_API_KEY")
+        api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
         if not api_key:
             logging.error("DEEPSEEK_API_KEY not set")
             return None
@@ -152,6 +170,11 @@ def _call_deepseek_once(user_message):
                 "temperature": 0,
                 "max_tokens": 2000,
                 "response_format": {"type": "json_object"},
+                # Deterministic JSON extraction: the v4 models think out loud by
+                # default and can burn the whole token budget on reasoning
+                # (observed: finish_reason='length', empty content, 6k chars of
+                # reasoning_content). Thinking adds nothing for this task.
+                "thinking": {"type": "disabled"},
             },
             timeout=60,
         )
@@ -591,9 +614,8 @@ def rs_vegetables_telegram_webhook():
     chat_id = update['message']['chat']['id']
     user_message = update['message'].get('text', '')
 
-    # Log the incoming message
-    logging.info(f"\U0001F4E5 Received from chat {chat_id}")
-    logging.info(f"\U0001F4DD Message: {user_message}")
+    # One line per order; message truncated to keep logs readable.
+    logging.info(f"\U0001F4E5 Order from chat {chat_id}: {user_message[:150]}")
 
     def process_and_send():
         try:

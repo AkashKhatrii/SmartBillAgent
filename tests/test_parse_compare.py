@@ -69,9 +69,12 @@ def test_call_deepseek_parses_items():
     assert url == "https://api.deepseek.com/chat/completions"  # canonical: no /v1
     assert kwargs["headers"]["Authorization"] == "Bearer ds-key"
     body = kwargs["json"]
-    assert body["model"] == "deepseek-v4-flash"  # non-reasoning chat model
+    assert body["model"] == "deepseek-v4-flash"
     assert body["temperature"] == 0
     assert body["response_format"] == {"type": "json_object"}
+    # Thinking must stay disabled: on 2026-09-27 the model thought out loud
+    # until finish_reason='length' and returned empty content (no bill).
+    assert body["thinking"] == {"type": "disabled"}
     assert body["messages"][0] == {"role": "system", "content": main.SYSTEM_PROMPT}
     assert body["messages"][1] == {"role": "user", "content": "Tomato 2kg"}
 

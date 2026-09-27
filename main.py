@@ -25,7 +25,8 @@ GENERATE_API_KEY = os.environ.get("GENERATE_API_KEY")
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 # DeepSeek (OpenAI-compatible API). Best model right now: v4-pro.
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+# Official endpoint is POST https://api.deepseek.com/chat/completions (no /v1).
+DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
 
 
@@ -136,7 +137,16 @@ def call_deepseek(user_message):
             timeout=60,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        try:
+            data = resp.json()
+        except json.JSONDecodeError as e:
+            logging.error(
+                "DeepSeek returned a non-JSON body "
+                f"(status={resp.status_code}): {e}; "
+                f"body={(resp.text or '')[:300]!r}"
+            )
+            return []
+        content = data["choices"][0]["message"]["content"]
         logging.debug(f"DeepSeek response: {content}")
 
         content = _clean_json_text(content)

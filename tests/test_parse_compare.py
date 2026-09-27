@@ -66,7 +66,7 @@ def test_call_deepseek_parses_items():
 
     # Verify the request shape: right endpoint, best model, deterministic, same prompt
     (url,), kwargs = mpost.call_args
-    assert url == "https://api.deepseek.com/v1/chat/completions"
+    assert url == "https://api.deepseek.com/chat/completions"  # canonical: no /v1
     assert kwargs["headers"]["Authorization"] == "Bearer ds-key"
     body = kwargs["json"]
     assert body["model"] == "deepseek-v4-pro"
@@ -245,3 +245,20 @@ def test_rsvegetables_webhook_sends_two_pdfs(monkeypatch):
     assert resp.status_code == 200
     assert [fn for fn, _ in sent_docs] == ["bill_claude.pdf", "bill_deepseek.pdf"]
     assert sent_texts and "Processing" in sent_texts[0]
+
+
+def test_deepseek_endpoint_is_canonical():
+    # DeepSeek's documented endpoint has no /v1; the /v1 form returned an
+    # empty non-JSON body in production (2026-09-27).
+    assert main.DEEPSEEK_API_URL == "https://api.deepseek.com/chat/completions"
+
+
+def test_deepseek_non_json_body_returns_empty(monkeypatch):
+    class BadResp:
+        status_code = 200
+        text = ""
+        def raise_for_status(self): pass
+        def json(self): raise json.JSONDecodeError("Expecting value", "", 0)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: BadResp())
+    assert main.call_deepseek("Tomato 2kg") == []

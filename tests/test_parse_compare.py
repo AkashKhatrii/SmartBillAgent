@@ -295,3 +295,24 @@ def test_version_endpoint_reports_commit_and_deepseek_config():
     assert data["deepseek_model"] == "deepseek-v4-flash"
     assert data["deepseek_url"] == "https://api.deepseek.com/chat/completions"
     assert "commit" in data
+
+
+def test_as_item_list_unwraps_dict_wrapped_array():
+    wrapped = {"items": [{"item_name": "Tomato", "quantity": "2kg"}]}
+    assert main._as_item_list(wrapped) == [{"item_name": "Tomato", "quantity": "2kg"}]
+    assert main._as_item_list([{"item_name": "Tomato", "quantity": "2kg"}]) == [
+        {"item_name": "Tomato", "quantity": "2kg"}]
+    assert main._as_item_list({"no_list": 1}) == []
+    assert main._as_item_list("nope") == []
+
+
+def test_deepseek_unwraps_json_object_wrapper(monkeypatch):
+    class Resp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"finish_reason": "stop", "message": {
+                "content": '{"items": [{"item_name": "Tomato", "quantity": "2kg"}]}'}}]}
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: Resp())
+    assert main.call_deepseek("x") == [{"item_name": "Tomato", "quantity": "2kg"}]

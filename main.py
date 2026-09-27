@@ -70,6 +70,20 @@ SYSTEM_PROMPT = load_system_prompt()
 #         print("Claude error:", e)
 #         return []
 
+def _as_item_list(parsed):
+    """Normalise an LLM JSON result to a list of item dicts.
+
+    With response_format=json_object the model sometimes wraps the array,
+    e.g. {"items": [...]} instead of [...]. Unwrap the first list found.
+    """
+    if isinstance(parsed, dict):
+        for value in parsed.values():
+            if isinstance(value, list):
+                return value
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 def _clean_json_text(content):
     # Strip markdown code blocks if present
     content = content.strip()
@@ -171,7 +185,7 @@ def call_deepseek(user_message):
 
         logging.debug(f"Cleaned content: {content[:200]}...")
 
-        parsed = json.loads(content)
+        parsed = _as_item_list(json.loads(content))
         logging.debug(f"DeepSeek parsed {len(parsed)} items")
 
         return parsed

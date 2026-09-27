@@ -23,13 +23,28 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN") # Replace with your token
-ANIL_KIRYANA_BOT_TOKEN = os.environ.get("ANIL_KIRYANA_BOT_TOKEN")
-RS_VEGETABLES_BOT_TOKEN = os.environ.get("RS_VEGETABLES_BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+ANIL_KIRYANA_BOT_TOKEN = os.getenv("ANIL_KIRYANA_BOT_TOKEN", "")
+RS_VEGETABLES_BOT_TOKEN = os.getenv("RS_VEGETABLES_BOT_TOKEN", "")
+# All secrets come from the environment (Railway Variables). Nothing secret may
+# be hardcoded here: past hardcoded values were committed to git and revoked.
 PDF_API = os.environ.get("PDF_API")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
-GENERATE_API_KEY = os.environ.get("GENERATE_API_KEY")
+
+for _secret_name in (
+    "BOT_TOKEN",
+    "ANIL_KIRYANA_BOT_TOKEN",
+    "RS_VEGETABLES_BOT_TOKEN",
+    "DEEPSEEK_API_KEY",
+    "CLAUDE_API_KEY",
+    "PDF_API",
+    "GENERATE_API_KEY",
+):
+    if not os.getenv(_secret_name):
+        logging.warning(f"{_secret_name} is not set")
+del _secret_name
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+GENERATE_API_KEY = os.getenv("GENERATE_API_KEY", "")
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 

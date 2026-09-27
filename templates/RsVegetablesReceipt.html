@@ -73,16 +73,20 @@
             </tr>
           {% endfor %}
         </tbody>
+        {% if is_last_page %}
         <tfoot>
     <tr>
       <td colspan="3" style="text-align: right; font-weight: bold;">Total</td>
       <td style="font-weight: bold;">₹{{ total }}</td>
     </tr>
   </tfoot>
+        {% endif %}
       </table>
+      {% if is_last_page %}
       <div class="footer">
         Thank you for shopping with RS Vegetables and Fruits!
       </div>
+      {% endif %}
     </div>
   </body>
 </html>

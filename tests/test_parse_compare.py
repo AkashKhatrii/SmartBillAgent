@@ -405,3 +405,44 @@ def test_disabled_surfaces_return_404_by_default():
     assert client.post("/generate", json={}).status_code == 404
     assert client.get("/whatsapp").status_code == 404
     assert client.post("/whatsapp", json={}).status_code == 404
+
+
+def test_receipt_footer_and_total_only_on_last_page():
+    """Regression: with 17 rows/page the thank-you footer spilled onto its own
+    blank page whenever a full page left no room for it."""
+    rows = [{"no": 1, "item_name": "Onion", "quantity": "1 kg"}]
+    for tpl, thanks in [
+        (main.rs_vegetables_template, "Thank you for shopping with RS Vegetables and Fruits!"),
+        (main.anil_kiryana_template, "Thank you for shopping with Anil Kiryana!"),
+    ]:
+        first = tpl.render(date="d", rows=rows, page=1, total_pages=2, is_last_page=False)
+        last = tpl.render(date="d", rows=rows, page=2, total_pages=2, is_last_page=True)
+        assert thanks not in first
+        assert "<tfoot>" not in first
+        assert thanks in last
+        assert last.count("<tfoot>") == 1
+
+
+def test_multipage_bill_has_single_footer():
+    """24 items at 15 rows/page -> 2 pages, footer rendered exactly once."""
+    items = [{"item_name": f"Item {i}", "quantity": "1 kg"} for i in range(24)]
+    chunks = list(main.chunk_items(items, main.ROWS_PER_PAGE))
+    total_pages = len(chunks)
+    assert total_pages == 2
+    html = ""
+    serial = 1
+    for page_idx, chunk in enumerate(chunks, 1):
+        rows = [
+            {"no": serial + i, "item_name": it["item_name"], "quantity": it["quantity"]}
+            for i, it in enumerate(chunk)
+        ]
+        serial += len(chunk)
+        html += main.rs_vegetables_template.render(
+            date="d", rows=rows, page=page_idx, total_pages=total_pages,
+            is_last_page=(page_idx == total_pages),
+        )
+        if page_idx < total_pages:
+            html += '<div style="page-break-after: always"></div>'
+    assert html.count("Thank you for shopping with RS Vegetables and Fruits!") == 1
+    assert html.count("<tfoot>") == 1
+    assert html.count("page-break-after: always") == 1

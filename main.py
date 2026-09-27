@@ -72,7 +72,9 @@ SERVICE_DOWN_MESSAGE = (
 )
 
 
-ROWS_PER_PAGE = 17
+# 17 rows exactly fill an A5 page; the last page also needs room for the
+# Total row + thank-you footer (rendered only there), so cap pages at 15 rows.
+ROWS_PER_PAGE = 15
 
 # Setup Jinja2
 env = Environment(
@@ -320,7 +322,8 @@ def process_order_and_generate_pdf_for_anil_kiryana(user_message, parse_fn=call_
             date=date_str,
             rows=rows,
             page=page_idx,
-            total_pages=total_pages
+            total_pages=total_pages,
+            is_last_page=(page_idx == total_pages),
         )
 
         final_html += html_page
@@ -404,7 +407,8 @@ def process_order_and_generate_pdf_for_rs_vegetables(user_message, parse_fn=call
                 date=date_str,
                 rows=rows,
                 page=page_idx,
-                total_pages=total_pages
+                total_pages=total_pages,
+                is_last_page=(page_idx == total_pages),
             )
 
             final_html += html_page

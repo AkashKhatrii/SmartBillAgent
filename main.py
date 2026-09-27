@@ -146,7 +146,20 @@ def call_deepseek(user_message):
                 f"body={(resp.text or '')[:300]!r}"
             )
             return []
-        content = data["choices"][0]["message"]["content"]
+        choice = data["choices"][0]
+        message = choice.get("message", {}) or {}
+        content = message.get("content") or ""
+        reasoning = message.get("reasoning_content") or ""
+        logging.debug(
+            "DeepSeek choice: finish_reason=%r message_keys=%s "
+            "content_len=%d reasoning_len=%d",
+            choice.get("finish_reason"), sorted(message.keys()),
+            len(content), len(reasoning),
+        )
+        if not content.strip() and reasoning.strip():
+            # v4 models may put output in reasoning_content; salvage it.
+            logging.warning("DeepSeek returned empty content; falling back to reasoning_content")
+            content = reasoning
         logging.debug(f"DeepSeek response: {content}")
 
         content = _clean_json_text(content)

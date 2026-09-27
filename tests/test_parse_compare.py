@@ -262,3 +262,26 @@ def test_deepseek_non_json_body_returns_empty(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
     monkeypatch.setattr(main.requests, "post", lambda *a, **k: BadResp())
     assert main.call_deepseek("Tomato 2kg") == []
+
+
+def _deepseek_resp_with(message):
+    class Resp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"finish_reason": "stop", "message": message}]}
+    return Resp()
+
+
+def test_deepseek_falls_back_to_reasoning_content(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: _deepseek_resp_with(
+        {"content": "", "reasoning_content": '[{"item_name": "Tomato", "quantity": "2kg"}]'}))
+    assert main.call_deepseek("x") == [{"item_name": "Tomato", "quantity": "2kg"}]
+
+
+def test_deepseek_empty_content_and_reasoning_returns_empty(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: _deepseek_resp_with(
+        {"content": "", "reasoning_content": ""}))
+    assert main.call_deepseek("x") == []

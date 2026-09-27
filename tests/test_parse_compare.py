@@ -316,3 +316,50 @@ def test_deepseek_unwraps_json_object_wrapper(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
     monkeypatch.setattr(main.requests, "post", lambda *a, **k: Resp())
     assert main.call_deepseek("x") == [{"item_name": "Tomato", "quantity": "2kg"}]
+
+
+def test_prompt_instructs_fraction_to_gram_normalization():
+    """Guard the fraction rule: prompt must teach 1/4 -> 250 g, not '1/4 kg'.
+
+    Regression test for the Claude-vs-DeepSeek diff where DeepSeek kept
+    '1/4 kg' while Claude normalized to '250 g'.
+    """
+    prompt = open("prompts/system_prompt.txt", encoding="utf-8").read()
+    assert '"1/4" → "250 g"' in prompt
+    assert '"1/2" → "500 g"' in prompt
+    assert "never leave a fraction in the output" in prompt
+    # The worked example must agree with the rule (was '1/2 kg' before).
+    assert '"quantity":"1/2 kg"' not in prompt
+
+
+def test_deepseek_retries_once_on_garbage_content(monkeypatch):
+    """call_deepseek retries when the model returns non-JSON content."""
+    calls = {"n": 0}
+
+    class Resp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return {"choices": [{"finish_reason": "stop", "message": {
+                    "content": "We need answer only JSON array minified. Need parse..."}}]}
+            return {"choices": [{"finish_reason": "stop", "message": {
+                "content": '[{"item_name": "Tomato", "quantity": "2 kg"}]'}}]}
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: Resp())
+    assert main.call_deepseek("x") == [{"item_name": "Tomato", "quantity": "2 kg"}]
+    assert calls["n"] == 2
+
+
+def test_deepseek_gives_up_after_two_attempts(monkeypatch):
+    class Resp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"finish_reason": "stop", "message": {"content": ""}}]}
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: Resp())
+    assert main.call_deepseek("x") == []

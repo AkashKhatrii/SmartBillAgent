@@ -131,13 +131,13 @@ def call_claude(user_message):
         logging.error(f"Claude error: {e}")
         return []
 
-def call_deepseek(user_message):
-    """Same contract as call_claude, but via DeepSeek's OpenAI-compatible API."""
+def _call_deepseek_once(user_message):
+    """Single attempt; returns None on any failure so the caller can retry."""
     try:
         api_key = os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
             logging.error("DEEPSEEK_API_KEY not set")
-            return []
+            return None
         logging.debug(f"Sending to DeepSeek: {user_message[:200]}...")
 
         resp = requests.post(
@@ -164,7 +164,7 @@ def call_deepseek(user_message):
                 f"(status={resp.status_code}): {e}; "
                 f"body={(resp.text or '')[:300]!r}"
             )
-            return []
+            return None
         choice = data["choices"][0]
         message = choice.get("message", {}) or {}
         content = message.get("content") or ""
@@ -186,15 +186,36 @@ def call_deepseek(user_message):
         logging.debug(f"Cleaned content: {content[:200]}...")
 
         parsed = _as_item_list(json.loads(content))
+        if parsed is None:
+            logging.error(f"DeepSeek returned unexpected JSON shape: {content[:200]}")
+            return None
         logging.debug(f"DeepSeek parsed {len(parsed)} items")
 
         return parsed
     except json.JSONDecodeError as e:
         logging.error(f"DeepSeek JSON parsing error: {e}")
-        return []
+        return None
     except Exception as e:
         logging.error(f"DeepSeek error: {e}")
-        return []
+        return None
+
+
+def call_deepseek(user_message, max_attempts=2):
+    """Same contract as call_claude, but via DeepSeek's OpenAI-compatible API.
+
+    Retries once: the v4 model intermittently returns empty content or
+    reasoning text instead of the JSON object (observed ~1 in 8 live calls),
+    and every order must produce a bill_deepseek.pdf.
+    """
+    for attempt in range(1, max_attempts + 1):
+        items = _call_deepseek_once(user_message)
+        if items is not None:
+            return items
+        logging.warning(
+            f"DeepSeek attempt {attempt}/{max_attempts} failed; "
+            f"{'retrying' if attempt < max_attempts else 'giving up'}"
+        )
+    return []
 
 
 def highlight_devanagari(name):

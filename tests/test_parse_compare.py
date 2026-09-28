@@ -1,11 +1,8 @@
-"""Claude vs DeepSeek order-parsing comparison for SmartBillAgent.
+"""DeepSeek order-parsing tests for SmartBillAgent.
 
 Mocked unit tests run with no API keys:
     pytest tests/test_parse_compare.py -v
 
-Live side-by-side comparison (needs real keys, prints a diff report):
-    LIVE_COMPARE=1 CLAUDE_API_KEY=... DEEPSEEK_API_KEY=... \
-        pytest tests/test_parse_compare.py -v -s -k live
 """
 import json
 import os
@@ -18,7 +15,6 @@ import pytest
 # Repo root on path; main.py loads templates relative to cwd.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.chdir(os.path.join(os.path.dirname(__file__), ".."))
-os.environ.setdefault("CLAUDE_API_KEY", "test")
 os.environ.setdefault("DEEPSEEK_API_KEY", "test")
 
 import main  # noqa: E402
@@ -101,62 +97,16 @@ def test_call_deepseek_bad_json_returns_empty():
         assert main.call_deepseek("Tomato 2kg") == []
 
 
-def _stub_pdf_pipeline(monkeypatch, claude_items, deepseek_items):
-    """Stub both parsers + the PDF API; return captured telegram posts."""
-    monkeypatch.setattr(
-        main, "call_claude", lambda text: claude_items)
-    monkeypatch.setattr(
-        main, "call_deepseek", lambda text: deepseek_items)
 
-    fake_pdf = b"%PDF-1.4 " + b"x" * 200  # must pass the processor's >100-byte sanity check
-
-    def fake_post(url, **kwargs):
-        resp = types.SimpleNamespace()
-        resp.status_code = 200
-        resp.text = ""
-        resp.content = fake_pdf
-        return resp
-
-    monkeypatch.setattr(main.requests, "post", fake_post)
-    return fake_pdf
-
-
-def test_comparison_generates_two_pdfs(monkeypatch):
-    items = [{"item_name": "Tomato (टमाटर)", "quantity": "2kg"}]
-    fake_pdf = _stub_pdf_pipeline(monkeypatch, items, items)
-
-    results = main._comparison_results(
-        "Tomato 2kg", main.process_order_and_generate_pdf_for_rs_vegetables)
-
-    assert set(results) == {"claude", "deepseek"}
-    assert results["claude"] == fake_pdf
-    assert results["deepseek"] == fake_pdf
-
-
-def test_comparison_partial_failure_keeps_other_pdf(monkeypatch):
-    items = [{"item_name": "Tomato (टमाटर)", "quantity": "2kg"}]
-    fake_pdf = _stub_pdf_pipeline(monkeypatch, [], items)  # claude parses nothing
-
-    results = main._comparison_results(
-        "Tomato 2kg", main.process_order_and_generate_pdf_for_rs_vegetables)
-
-    assert results["claude"] is None
-    assert results["deepseek"] == fake_pdf
-
-
-def test_processor_default_still_uses_claude():
-    """Existing callers (web form, WhatsApp) keep Claude behavior.
-
-    parse_fn's default is bound at def time to the real call_claude, so we
-    assert the wiring instead of stubbing it.
-    """
+def test_processor_default_uses_deepseek():
+    """Default parse_fn is DeepSeek (Claude sunset)."""
     import inspect
     sig = inspect.signature(main.process_order_and_generate_pdf_for_rs_vegetables)
-    assert sig.parameters["parse_fn"].default is main.call_claude
+    assert sig.parameters["parse_fn"].default is main.call_deepseek
 
 
 def test_processor_explicit_parse_fn(monkeypatch):
-    """Explicit parse_fn (the comparison path) is honored."""
+    """Explicit parse_fn overrides the DeepSeek default."""
     called = {}
 
     def fake_deepseek(text):
@@ -178,63 +128,25 @@ def test_processor_explicit_parse_fn(monkeypatch):
     assert pdf == b"%PDF-1.4 " + b"x" * 200
 
 
-# ---------------------------------------------------------------- live test
-
-def _live_keys_present():
-    return (
-        os.getenv("LIVE_COMPARE") == "1"
-        and os.getenv("CLAUDE_API_KEY") not in (None, "test")
-        and os.getenv("DEEPSEEK_API_KEY") not in (None, "test")
-    )
-
-
-@pytest.mark.skipif(not _live_keys_present(), reason="needs LIVE_COMPARE=1 + real keys")
-def test_compare_claude_vs_deepseek_live():
-    """Side-by-side: prints a diff report per order. Fails only on total parse failure."""
-    print("\n\n=== Claude vs DeepSeek live comparison ===")
-    failures = []
-    for order in SAMPLE_ORDERS:
-        claude_items = main.call_claude(order)
-        deepseek_items = main.call_deepseek(order)
-        print(f"\nOrder: {order!r}")
-        print(f"  claude   ({len(claude_items)} items): "
-              f"{[(i.get('item_name'), i.get('quantity')) for i in claude_items]}")
-        print(f"  deepseek ({len(deepseek_items)} items): "
-              f"{[(i.get('item_name'), i.get('quantity')) for i in deepseek_items]}")
-
-        if not claude_items and not deepseek_items:
-            failures.append(order)
-            print("  !! BOTH failed to parse")
-            continue
-        # Flag differences without failing: legit model differences are the point.
-        c_set = {(i.get("item_name"), i.get("quantity")) for i in claude_items}
-        d_set = {(i.get("item_name"), i.get("quantity")) for i in deepseek_items}
-        if c_set != d_set:
-            print(f"  ~~ differ: only-claude={c_set - d_set} only-deepseek={d_set - c_set}")
-        else:
-            print("  == identical")
-
-    assert not failures, f"Both providers failed on: {failures}"
-    print("\n=== done ===")
-
-
 def test_anil_processor_empty_parse_returns_none():
     assert main.process_order_and_generate_pdf_for_anil_kiryana(
         "gibberish", parse_fn=lambda t: []) is None
 
 
-def test_anil_processor_default_still_uses_claude():
+def test_anil_processor_default_uses_deepseek():
+    """Default parse_fn is DeepSeek (Claude sunset)."""
     import inspect
     sig = inspect.signature(main.process_order_and_generate_pdf_for_anil_kiryana)
-    assert sig.parameters["parse_fn"].default is main.call_claude
+    assert sig.parameters["parse_fn"].default is main.call_deepseek
 
 
-def test_rsvegetables_webhook_sends_two_pdfs(monkeypatch):
+def test_rsvegetables_webhook_sends_single_order_pdf(monkeypatch):
     sent_docs, sent_texts = [], []
-    monkeypatch.setattr(main, "_comparison_results",
-                        lambda msg, proc: {"claude": b"C", "deepseek": b"D"})
+    fake_pdf = b"%PDF-1.4 " + b"x" * 200
+    monkeypatch.setattr(main, "process_order_and_generate_pdf_for_rs_vegetables",
+                        lambda text: fake_pdf)
     monkeypatch.setattr(main, "_send_telegram_document",
-                        lambda tok, chat, fn, data, caption=None: sent_docs.append((fn, data)))
+                        lambda tok, chat, fn, data, caption="": sent_docs.append((fn, caption)))
     monkeypatch.setattr(main, "_send_telegram_text",
                         lambda tok, chat, text: sent_texts.append(text))
 
@@ -247,7 +159,8 @@ def test_rsvegetables_webhook_sends_two_pdfs(monkeypatch):
         "/rsvegetableswebhook",
         json={"message": {"chat": {"id": 1}, "text": "Tomato 2kg"}})
     assert resp.status_code == 200
-    assert [fn for fn, _ in sent_docs] == ["bill_claude.pdf", "bill_deepseek.pdf"]
+    assert [fn for fn, _ in sent_docs] == ["order.pdf"]
+    assert all(caption in ("", None) for _, caption in sent_docs)
     assert sent_texts and "Processing" in sent_texts[0]
 
 

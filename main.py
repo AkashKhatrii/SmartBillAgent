@@ -6,7 +6,6 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 import os
-import anthropic
 import pytz
 from xhtml2pdf import pisa
 import logging
@@ -35,7 +34,6 @@ for _secret_name in (
     "ANIL_KIRYANA_BOT_TOKEN",
     "RS_VEGETABLES_BOT_TOKEN",
     "DEEPSEEK_API_KEY",
-    "CLAUDE_API_KEY",
     "PDF_API",
     "GENERATE_API_KEY",
 ):
@@ -43,10 +41,8 @@ for _secret_name in (
         logging.warning(f"{_secret_name} is not set")
 del _secret_name
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
 GENERATE_API_KEY = os.getenv("GENERATE_API_KEY", "")
 
-anthropic_client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 # DeepSeek (OpenAI-compatible API). Best model right now: v4-pro.
 # Official endpoint is POST https://api.deepseek.com/chat/completions (no /v1).
@@ -106,25 +102,6 @@ def load_system_prompt(path="prompts/system_prompt.txt"):
     
 SYSTEM_PROMPT = load_system_prompt()
 
-# def call_claude(user_message):
-#     try:
-#         message = anthropic_client.messages.create(
-#             model="claude-sonnet-4-5-20250929",
-#             max_tokens=2000,
-#             temperature=0,
-#             system=SYSTEM_PROMPT,
-#             messages=[
-#                 {
-#                     "role": "user",
-#                     "content": [{"type": "text", "text": user_message}]
-#                 }
-#             ]
-#         )
-#         content = message.content[0].text
-#         return json.loads(content)
-#     except Exception as e:
-#         print("Claude error:", e)
-#         return []
 
 def _as_item_list(parsed):
     """Normalise an LLM JSON result to a list of item dicts.
@@ -151,41 +128,6 @@ def _clean_json_text(content):
         content = content[:-3]  # Remove trailing ```
     return content.strip()
 
-
-def call_claude(user_message):
-    try:
-        logging.debug(f"Sending to Claude: {user_message[:200]}...")
-
-        message = anthropic_client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=2000,
-            temperature=0,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": user_message}]
-                }
-            ]
-        )
-        content = message.content[0].text
-        logging.debug(f"Claude response: {content}")
-
-        content = _clean_json_text(content)
-
-        logging.debug(f"Cleaned content: {content[:200]}...")
-
-        parsed = json.loads(content)
-        logging.debug(f"✅ Parsed {len(parsed)} items")
-
-        return parsed
-    except json.JSONDecodeError as e:
-        logging.error(f"JSON parsing error: {e}")
-        logging.error(f"Content was: {content}")
-        return []
-    except Exception as e:
-        logging.error(f"Claude error: {e}")
-        return []
 
 def _call_deepseek_once(user_message):
     """Single attempt; returns None on any failure so the caller can retry."""
@@ -262,11 +204,11 @@ def _call_deepseek_once(user_message):
 
 
 def call_deepseek(user_message, max_attempts=2):
-    """Same contract as call_claude, but via DeepSeek's OpenAI-compatible API.
+    """Parse an order message into item dicts via DeepSeek's OpenAI-compatible API.
 
     Retries once: the v4 model intermittently returns empty content or
     reasoning text instead of the JSON object (observed ~1 in 8 live calls),
-    and every order must produce a bill_deepseek.pdf.
+    and every order must produce a bill.
     """
     for attempt in range(1, max_attempts + 1):
         items = _call_deepseek_once(user_message)
@@ -307,8 +249,8 @@ def render_receipt_html(items, receipt):
     date_str = now.strftime("%d-%b-%Y %H:%M:%S")
     return render_template_string(template, date=date_str, rows=rows)
 
-def process_order_and_generate_pdf_for_anil_kiryana(user_message, parse_fn=call_claude):
-    # 1. Parse order text into items (Claude or DeepSeek)
+def process_order_and_generate_pdf_for_anil_kiryana(user_message, parse_fn=call_deepseek):
+    # 1. Parse order text into items via DeepSeek
     items_list = parse_fn(user_message)
 
     if not items_list:
@@ -351,47 +293,9 @@ def process_order_and_generate_pdf_for_anil_kiryana(user_message, parse_fn=call_
     return res_pdf.content
 
 
-# def process_order_and_generate_pdf_for_rs_vegetables(user_message):
-#     # 1. Send to OpenAI and parse
-#     items_list = call_claude(user_message)
-
-#     # 2. Chunk items and render per page
-#     chunks = list(chunk_items(items_list, ROWS_PER_PAGE))
-#     total_pages = len(chunks)
-#     ist = pytz.timezone("Asia/Kolkata")
-#     date_str = datetime.now(ist).strftime("%d-%b-%Y %H:%M:%S")
-#     final_html = ""
-#     serial_no = 1
-
-#     for page_idx, chunk in enumerate(chunks, 1):
-#         # Prepare table rows as a list of dicts for Jinja2
-#         rows = []
-#         for item in chunk:
-#             rows.append({
-#                 'no': serial_no,
-#                 'item_name': highlight_devanagari(item.get('item_name', '')),
-#                 'quantity': item.get('quantity', '')
-#             })
-#             serial_no += 1
-
-#         html_page = rs_vegetables_template.render(
-#             date=date_str,
-#             rows=rows,
-#             page=page_idx,
-#             total_pages=total_pages
-#         )
-
-#         final_html += html_page
-#         if page_idx < total_pages:
-#             final_html += '<div style="page-break-after: always"></div>'
-
-#     # 3. Convert HTML to PDF
-#     res_pdf = requests.post(PDF_API, json={"html": final_html})
-#     return res_pdf.content
-
-def process_order_and_generate_pdf_for_rs_vegetables(user_message, parse_fn=call_claude):
+def process_order_and_generate_pdf_for_rs_vegetables(user_message, parse_fn=call_deepseek):
     try:
-        # 1. Parse order text into items (Claude or DeepSeek)
+        # 1. Parse order text into items via DeepSeek
         items_list = parse_fn(user_message)
 
         # CHECK: If no items, return error
@@ -556,27 +460,6 @@ def _send_telegram_text(bot_token, chat_id, text):
     )
 
 
-def _comparison_results(user_message, processor):
-    """Run Claude + DeepSeek parses in parallel; return {name: pdf_bytes_or_None}."""
-    results = {}
-
-    def run(name, parse_fn):
-        try:
-            results[name] = processor(user_message, parse_fn=parse_fn)
-        except Exception as e:
-            logging.error(f"{name} pipeline failed: {e}")
-            results[name] = None
-
-    threads = [
-        Thread(target=run, args=("claude", call_claude)),
-        Thread(target=run, args=("deepseek", call_deepseek)),
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    return results
-
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
@@ -585,23 +468,18 @@ def telegram_webhook():
     user_message = update['message'].get('text', '')
 
     def process_and_send():
-        # Comparison mode: one PDF per provider so quality can be judged side by side.
-        results = _comparison_results(
-            user_message, process_order_and_generate_pdf_for_rs_vegetables
-        )
-        for name in ("claude", "deepseek"):
-            pdf_bytes = results.get(name)
+        try:
+            pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
             if pdf_bytes:
-                _send_telegram_document(
-                    BOT_TOKEN, chat_id,
-                    f"bill_{name}.pdf", pdf_bytes,
-                    caption=f"Bill via {name}",
-                )
+                _send_telegram_document(BOT_TOKEN, chat_id, "order.pdf", pdf_bytes)
             else:
                 _send_telegram_text(
                     BOT_TOKEN, chat_id,
-                    f"WARNING: {name} failed to generate a bill for this order.",
+                    "WARNING: failed to generate a bill for this order.",
                 )
+        except Exception as e:
+            logging.error(f"Error in process_and_send: {e}", exc_info=True)
+            _send_telegram_text(BOT_TOKEN, chat_id, f"Error: {str(e)}")
 
     Thread(target=process_and_send).start()
     return jsonify({'ok': True})
@@ -617,28 +495,22 @@ def anil_kiryana_telegram_webhook():
             # Paused: look broken ("API balance low"), not deliberately off.
             _send_telegram_text(ANIL_KIRYANA_BOT_TOKEN, chat_id, SERVICE_DOWN_MESSAGE)
             return
-        # Comparison mode: one PDF per provider so quality can be judged side by side.
-        results = _comparison_results(
-            user_message, process_order_and_generate_pdf_for_anil_kiryana
-        )
-        for name in ("claude", "deepseek"):
-            pdf_bytes = results.get(name)
-            if pdf_bytes:
-                _send_telegram_document(
-                    ANIL_KIRYANA_BOT_TOKEN, chat_id,
-                    f"bill_{name}.pdf", pdf_bytes,
-                    caption=f"Bill via {name}",
-                )
-            else:
-                _send_telegram_text(
-                    ANIL_KIRYANA_BOT_TOKEN, chat_id,
-                    f"WARNING: {name} failed to generate a bill for this order.",
-                )
+        # DeepSeek-only: one order.pdf, no caption.
+        pdf_bytes = process_order_and_generate_pdf_for_anil_kiryana(user_message)
+        if pdf_bytes:
+            _send_telegram_document(
+                ANIL_KIRYANA_BOT_TOKEN, chat_id, "order.pdf", pdf_bytes
+            )
+        else:
+            _send_telegram_text(
+                ANIL_KIRYANA_BOT_TOKEN, chat_id,
+                "WARNING: failed to generate a bill for this order.",
+            )
 
     Thread(target=process_and_send).start()
     return jsonify({'ok': True})
 
-# @app.route('/rsvegetableswebhook', methods=['POST'])
+@app.route('/rsvegetableswebhook', methods=['POST'])
 # def rs_vegetables_telegram_webhook():
 #     update = request.json
 #     chat_id = update['message']['chat']['id']
@@ -667,29 +539,23 @@ def rs_vegetables_telegram_webhook():
 
     def process_and_send():
         try:
-            # Comparison mode: one PDF per provider so quality can be judged side by side.
+            # DeepSeek-only: one order.pdf, no caption.
             _send_telegram_text(
                 RS_VEGETABLES_BOT_TOKEN, chat_id,
                 "\u23F3 Processing your order...",
             )
-            results = _comparison_results(
-                user_message, process_order_and_generate_pdf_for_rs_vegetables
-            )
-            for name in ("claude", "deepseek"):
-                pdf_bytes = results.get(name)
-                if pdf_bytes:
-                    logging.info(f"\u2705 {name} PDF generated: {len(pdf_bytes)} bytes")
-                    _send_telegram_document(
-                        RS_VEGETABLES_BOT_TOKEN, chat_id,
-                        f"bill_{name}.pdf", pdf_bytes,
-                        caption=f"Bill via {name}",
-                    )
-                else:
-                    logging.error(f"\u274C {name} failed to generate a bill")
-                    _send_telegram_text(
-                        RS_VEGETABLES_BOT_TOKEN, chat_id,
-                        f"WARNING: {name} failed to generate a bill for this order.",
-                    )
+            pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
+            if pdf_bytes:
+                logging.info(f"DeepSeek PDF generated: {len(pdf_bytes)} bytes")
+                _send_telegram_document(
+                    RS_VEGETABLES_BOT_TOKEN, chat_id, "order.pdf", pdf_bytes
+                )
+            else:
+                logging.error("DeepSeek failed to generate a bill")
+                _send_telegram_text(
+                    RS_VEGETABLES_BOT_TOKEN, chat_id,
+                    "WARNING: failed to generate a bill for this order.",
+                )
         except Exception as e:
             logging.error(f"\u274C Error in process_and_send: {e}", exc_info=True)
             _send_telegram_text(RS_VEGETABLES_BOT_TOKEN, chat_id, f"\u274C Error: {str(e)}")

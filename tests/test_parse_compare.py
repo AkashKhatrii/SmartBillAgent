@@ -424,7 +424,7 @@ def test_receipt_footer_and_total_only_on_last_page():
 
 
 def test_multipage_bill_has_single_footer():
-    """24 items at 15 rows/page -> 2 pages, footer rendered exactly once."""
+    """24 items at 18 rows/page -> 2 pages (18 + 6), footer rendered exactly once."""
     items = [{"item_name": f"Item {i}", "quantity": "1 kg"} for i in range(24)]
     chunks = list(main.chunk_items(items, main.ROWS_PER_PAGE))
     total_pages = len(chunks)

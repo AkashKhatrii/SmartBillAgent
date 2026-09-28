@@ -87,9 +87,10 @@ SERVICE_DOWN_MESSAGE = (
 )
 
 
-# 17 rows exactly fill an A5 page; the last page also needs room for the
-# Total row + thank-you footer (rendered only there), so cap pages at 15 rows.
-ROWS_PER_PAGE = 15
+# 18 rows/page fit because the template uses compact row padding; the last
+# page also needs room for the Total row + thank-you footer (rendered only
+# there), so keep an eye on bills with many two-line item names.
+ROWS_PER_PAGE = 18
 
 # Setup Jinja2
 env = Environment(

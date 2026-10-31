@@ -308,9 +308,39 @@ def test_anilkiryana_webhook_sends_down_message_when_disabled(monkeypatch):
     assert "API balance low" in sent[0]
 
 
+def test_main_webhook_sends_down_message_when_disabled(monkeypatch):
+    """Paused main bot looks broken (API balance low), not switched off."""
+    sent = []
+    monkeypatch.setattr(
+        main, "_send_telegram_text",
+        lambda tok, chat, text: sent.append((tok, text)),
+    )
+    monkeypatch.setattr(main, "MAIN_BOT_ENABLED", False)
+
+    class FakeThread:
+        def __init__(self, target):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(main, "Thread", FakeThread)
+
+    resp = main.app.test_client().post(
+        "/webhook",
+        json={"message": {"chat": {"id": 7}, "text": "Tomato 2kg"}},
+    )
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    tok, text = sent[0]
+    assert tok == main.BOT_TOKEN
+    assert "API balance low" in text
+
+
 def test_disabled_surfaces_return_404_by_default():
     """WhatsApp routes and the web form are off unless explicitly enabled."""
     assert main.ANIL_KIRYANA_ENABLED is False
+    assert main.MAIN_BOT_ENABLED is False
     assert main.WHATSAPP_ENABLED is False
     assert main.WEB_FORM_ENABLED is False
     client = main.app.test_client()

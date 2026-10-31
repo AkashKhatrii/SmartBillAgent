@@ -72,6 +72,7 @@ def _env_flag(name, default=False):
 
 
 ANIL_KIRYANA_ENABLED = _env_flag("ANIL_KIRYANA_ENABLED")  # when off, the bot replies "API balance low"
+MAIN_BOT_ENABLED = _env_flag("MAIN_BOT_ENABLED")          # when off, the bot replies "API balance low"
 WHATSAPP_ENABLED = _env_flag("WHATSAPP_ENABLED")          # /whatsapp verification + webhook
 WEB_FORM_ENABLED = _env_flag("WEB_FORM_ENABLED")          # / home route and /generate
 
@@ -468,6 +469,10 @@ def telegram_webhook():
     user_message = update['message'].get('text', '')
 
     def process_and_send():
+        if not MAIN_BOT_ENABLED:
+            # Paused: look broken ("API balance low"), not deliberately off.
+            _send_telegram_text(BOT_TOKEN, chat_id, SERVICE_DOWN_MESSAGE)
+            return
         try:
             pdf_bytes = process_order_and_generate_pdf_for_rs_vegetables(user_message)
             if pdf_bytes:
